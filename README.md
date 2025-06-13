@@ -27,7 +27,6 @@ npm i jwt-decode
 - ID_TOKENをJSで取得
 - user_nameをIDトークンに含める設定
 
-
 ```jsx
 "use client";
 import Image from "next/image";
@@ -96,3 +95,13 @@ export default function Home() {
 }
 
 ```
+
+### IDトークンにユーザー名を入れる
+
+okta管理画面 > API > 認可サーバー > クレーム
+
+- 名前: `user_name`
+- トークンに含める: IDトークン、常に
+- 値: `user.firstName + " " + user.lastName`
+- クレームを無効化: チェック無し
+- 含める: いずれかのスコープ
