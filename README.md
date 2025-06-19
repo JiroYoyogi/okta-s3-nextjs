@@ -1,4 +1,6 @@
-# 社内サイトDEMO
+# 社内サイトDEMO - with SDK
+
+前回の続き。ブランチの差分はREADMEのみ
 
 ## Getting Started
 
@@ -11,52 +13,83 @@ npm run dev
 npm run build
 ```
 
-## IDトークンから名前・メールアドレス取得
+## 変更・新規作成するファイル
 
-### ライブラリ追加
+### 新規作成
 
+- src/oktaAuth.ts
+- src/app/login-callback/page.tsx
+
+### 変更
+
+- src/app/page.tsx
+- src/components/LogoutButton.tsx
+
+## oktaの設定ファイル作成
+
+- src/oktaAuth.ts
+
+```tsx
+import { OktaAuth } from '@okta/okta-auth-js';
+const config = {
+  // Security → API → 該当の認可サーバー
+  issuer: "",
+  // Application → 該当のApplication
+  clientId: "",
+  redirectUri: typeof window !== "undefined" ? window.location.origin + "/login-callback" : "",
+  scopes: ["openid", "profile", "email"],
+  pkce: true,
+};
+
+const oktaAuth = new OktaAuth(config);
+export default oktaAuth;
 ```
-npm i jwt-decode
-```
 
-### コード変更
+## oktaのSDKを使いログイン実装
 
-（src/app/page.tsx）
+- src/app/page.tsx
 
-- ID_TOKENを手動で追加
-- ID_TOKENをJSで取得
-- user_nameをIDトークンに含める設定
-
-```jsx
+```tsx
 "use client";
 import Image from "next/image";
 import LogoutButton from "@/components/LogoutButton";
 import { useEffect, useState } from "react";
-import { jwtDecode, JwtPayload } from "jwt-decode";
-
-interface MyIdToken extends JwtPayload {
-  email?: string;
-  user_name?: string;
-}
+import { UserClaims } from "@okta/okta-auth-js";
+import oktaAuth from "@/oktaAuth";
 
 export default function Home() {
-  const [idToken, setIdToken] = useState<MyIdToken>({});
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<UserClaims>({
+    sub: "",
+    name: "",
+    email: "",
+  });
+
   useEffect(() => {
-    const cookies = document.cookie.split(";");
-    const cookieKeyVal: { [key: string]: string } = cookies.reduce((wip, c) => {
-      const [key, value] = c.split("=").map((s) => s.trim());
-      if (key) {
-        wip[key] = value ?? "";
+    const checkAuth = async () => {
+      // ログインセッションがあるか
+      const isAuthenticated = await oktaAuth.isAuthenticated();
+      if (!isAuthenticated) {
+        const state = window.location.pathname;
+        oktaAuth.signInWithRedirect({
+          originalUri: state,
+        });
+      } else {
+        const userInfo = await oktaAuth.getUser();
+        console.log(userInfo);
+        setUser(userInfo);
+        setIsAuthenticated(true);
       }
-      return wip;
-    }, {} as { [key: string]: string });
-    const idTokenFromCookie = cookieKeyVal.ID_TOKEN;
-    console.log(idTokenFromCookie);
-    if (!idTokenFromCookie) return;
-    const idTokenDecoded = jwtDecode(idTokenFromCookie);
-    console.log(idTokenDecoded);
-    setIdToken(idTokenDecoded);
+    };
+    checkAuth();
   }, []);
+
+  if (!isAuthenticated)
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p>Checking login status...</p>
+      </div>
+    );
 
   return (
     <main className="flex flex-col gap-[24px] items-center justify-center min-h-screen">
@@ -79,16 +112,14 @@ export default function Home() {
         <p className="mt-2">
           外部に漏れたらにまずい情報をたっぷり掲載しています。
         </p>
-        {
-        idToken ? (
-          <div className="text-center mt-2">
-            <p>{ idToken?.user_name }さん</p>
-            <p>（{ idToken?.email }）</p>
-            <p>ログイン中</p>
-          </div>
-        ) : null
-        }
       </div>
+      {user.name && user.email ? (
+        <div className="text-center">
+          <p>{user.name}さん</p>
+          <p>（{user.email}）</p>
+          <p>ログイン中</p>
+        </div>
+      ) : null}
       <LogoutButton />
     </main>
   );
@@ -96,12 +127,50 @@ export default function Home() {
 
 ```
 
-### IDトークンにユーザー名を入れる
+- src/app/login-callback/page.tsx
 
-okta管理画面 > API > 認可サーバー > クレーム
+```tsx
+'use client';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import oktaAuth from "@/oktaAuth";
 
-- 名前: `user_name`
-- トークンに含める: IDトークン、常に
-- 値: `user.firstName + " " + user.lastName`
-- クレームを無効化: チェック無し
-- 含める: いずれかのスコープ
+export default function Callback() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const handleCallback = async () => {
+      // Lambda@edgeの/callbackで作ったような処理がされる
+      // - URLに含まれる認可コードなどからトークンを取得
+      // - トークンを保存
+      // - 元のページにリダイレクト
+      await oktaAuth.handleLoginRedirect();
+    };
+    handleCallback();
+  }, [router]);
+
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <p>Redirecting...</p>
+    </div>
+  );
+}
+
+```
+
+## ログアウト処理を変更
+
+- src/components/LogoutButton.tsx
+
+①logout関数を下記で置き換える
+②logoutの確認が出来たら{CloudFrontドメイン}を置き換えてコメントを外す
+
+```tsx
+  const logout = async () => {
+    console.log({ origin: window.location.origin });
+    await oktaAuth.signOut({ 
+      clearTokensBeforeRedirect: true,
+      // postLogoutRedirectUri: `https://{CloudFrontドメイン}/logout`,
+    });
+  };
+```
