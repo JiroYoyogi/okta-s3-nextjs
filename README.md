@@ -162,7 +162,8 @@ export default function Callback() {
 
 - src/components/LogoutButton.tsx
 
-①logout関数を下記で置き換える. 
+①logout関数を下記で置き換える
+
 ②logoutの確認が出来たら{CloudFrontドメイン}を置き換えてコメントを外す
 
 ```tsx
