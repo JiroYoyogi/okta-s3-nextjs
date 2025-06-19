@@ -144,7 +144,7 @@ export default function Callback() {
       // - URLに含まれる認可コードなどからトークンを取得
       // - トークンを保存
       // - 元のページにリダイレクト
-      await oktaAuth.handleLoginRedirect();
+      await oktaAuth.handleLogin();
     };
     handleCallback();
   }, [router]);
