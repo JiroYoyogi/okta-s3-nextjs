@@ -160,6 +160,8 @@ export default function Callback() {
 
 ## アクセストークンを使いたい①
 
+- src/app/page.tsx（追加）
+
 ```tsx
 const token = await oktaAuth.tokenManager.get("accessToken");
 console.log(token);
@@ -168,8 +170,7 @@ console.log(token);
 
 ## アクセストークンを使いたい②
 
-- src/app/page.tsx
-
+- src/app/page.tsx（追加）
 
 アクセストークンの有効期限切れなどを考慮したい場合
 
