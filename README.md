@@ -79,6 +79,17 @@ export default function Home() {
         console.log(userInfo);
         setUser(userInfo);
         setIsAuthenticated(true);
+
+        const token = await oktaAuth.tokenManager.get("accessToken");
+        console.log(token);
+        if (token || "accessToken" in token) { 
+          // 社内情報APIへのリクエスト
+          // const response = await axios.get('https://api.example.com/secret-information/', {
+          //   headers: {
+          //     Authorization: `Bearer ${token.accessToken}`,
+          //   },
+          // });
+        }
       }
     };
     checkAuth();
@@ -125,6 +136,32 @@ export default function Home() {
   );
 }
 
+```
+
+- src/app/page.tsx
+
+アクセストークン取得のユーティリティ関数作成。有効期限切れなどを考慮する場合
+
+```tsx
+async function getValidAccessToken(): Promise<string> {
+  // ローカルストレージから取得
+  let token = await oktaAuth.tokenManager.get("accessToken");
+  try {
+    // 無い or 期限切れ → 再取得
+    if (!token || oktaAuth.tokenManager.hasExpired(token)) {
+      token = await oktaAuth.tokenManager.renew("accessToken");
+    }
+    // 型ガード
+    if (!token || !("accessToken" in token)) { 
+      throw new Error("token doesn't include accessToken.");
+    }
+  } catch (e) {
+    // tokenManager.renew("accessToken")がセッション切れなどで失敗した場合を想定
+    console.warn(e);
+    return "";
+  }
+  return token.accessToken;
+}
 ```
 
 - src/app/login-callback/page.tsx
